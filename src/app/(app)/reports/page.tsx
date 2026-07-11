@@ -20,14 +20,18 @@ export default async function ReportsPage() {
     ? { projectId: { in: allowedProjectIds } }
     : { projectId: { in: allowedProjectIds }, assignedToId: user.id };
 
-  const [leads, bookings, executives] = await Promise.all([
+  const [leads, bookings, executives, callActivities] = await Promise.all([
     db.lead.findMany({ where: leadWhere, select: { status: true, source: true, assignedToId: true, lostReason: true } }),
     db.booking.findMany({
       where: { projectId: { in: allowedProjectIds } },
-      select: { totalPrice: true, status: true, salesExecutiveId: true },
+      select: { totalPrice: true, status: true, salesExecutiveId: true, createdAt: true, lead: { select: { createdAt: true } } },
     }),
     db.user.findMany({
       where: { builderId: user.builderId, role: { in: ["SALES_EXECUTIVE", "TELECALLER"] } },
+    }),
+    db.leadActivity.findMany({
+      where: { type: "CALL", lead: { projectId: { in: allowedProjectIds } } },
+      select: { userId: true },
     }),
   ]);
 
@@ -51,6 +55,12 @@ export default async function ReportsPage() {
   const revenue = bookings.filter((b) => b.status !== "CANCELLED").reduce((sum, b) => sum + Number(b.totalPrice), 0);
   const conversionRate = leads.length > 0 ? ((funnelCounts.BOOKED ?? 0) / leads.length) * 100 : 0;
 
+  const callCountByUser = callActivities.reduce<Record<string, number>>((acc, a) => {
+    if (!a.userId) return acc;
+    acc[a.userId] = (acc[a.userId] ?? 0) + 1;
+    return acc;
+  }, {});
+
   const executivePerformance = executives.map((exec) => {
     const execLeads = leads.filter((l) => l.assignedToId === exec.id);
     const execBookings = bookings.filter((b) => b.salesExecutiveId === exec.id && b.status !== "CANCELLED");
@@ -59,8 +69,17 @@ export default async function ReportsPage() {
       leads: execLeads.length,
       bookings: execBookings.length,
       revenue: execBookings.reduce((sum, b) => sum + Number(b.totalPrice), 0),
+      calls: callCountByUser[exec.id] ?? 0,
     };
   });
+
+  const nonCancelledBookings = bookings.filter((b) => b.status !== "CANCELLED");
+  const daysToBook = nonCancelledBookings.map(
+    (b) => (b.createdAt.getTime() - b.lead.createdAt.getTime()) / (24 * 60 * 60 * 1000),
+  );
+  const avgSalesVelocityDays =
+    daysToBook.length > 0 ? daysToBook.reduce((sum, d) => sum + d, 0) / daysToBook.length : null;
+  const totalCalls = callActivities.length;
 
   return (
     <div className="flex flex-col gap-5">
@@ -85,6 +104,29 @@ export default async function ReportsPage() {
         <Card className="p-4">
           <div className="text-xl font-semibold">{funnelCounts.SITE_VISIT_DONE ?? 0}</div>
           <div className="text-xs text-muted-foreground">Site Visits Completed</div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-4 gap-4">
+        <Card className="p-4">
+          <div className="text-xl font-semibold">{totalCalls}</div>
+          <div className="text-xs text-muted-foreground">Total Calls Logged</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xl font-semibold">
+            {avgSalesVelocityDays !== null ? `${avgSalesVelocityDays.toFixed(1)} days` : "-"}
+          </div>
+          <div className="text-xs text-muted-foreground">Avg. Sales Velocity (lead → booking)</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xl font-semibold">{nonCancelledBookings.length}</div>
+          <div className="text-xs text-muted-foreground">Bookings (non-cancelled)</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xl font-semibold">
+            {leads.length > 0 ? (totalCalls / leads.length).toFixed(1) : "0"}
+          </div>
+          <div className="text-xs text-muted-foreground">Calls per Lead</div>
         </Card>
       </div>
 
@@ -151,6 +193,7 @@ export default async function ReportsPage() {
               <TableRow>
                 <TableHead>Executive</TableHead>
                 <TableHead>Leads</TableHead>
+                <TableHead>Calls</TableHead>
                 <TableHead>Bookings</TableHead>
                 <TableHead>Revenue</TableHead>
               </TableRow>
@@ -160,6 +203,7 @@ export default async function ReportsPage() {
                 <TableRow key={row.name}>
                   <TableCell className="text-sm font-medium">{row.name}</TableCell>
                   <TableCell className="text-sm">{row.leads}</TableCell>
+                  <TableCell className="text-sm">{row.calls}</TableCell>
                   <TableCell className="text-sm">{row.bookings}</TableCell>
                   <TableCell className="text-sm">{formatCurrency(row.revenue)}</TableCell>
                 </TableRow>

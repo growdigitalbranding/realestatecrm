@@ -5,6 +5,10 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireUser, scopedProjectIds } from "@/lib/auth-helpers";
 import { resolveAssignment } from "@/lib/assignment";
+import { runAutomation } from "@/lib/automation";
+import { writeAuditLog } from "@/lib/audit";
+import { sendMetaConversionEvent, sendGoogleConversionEvent } from "@/lib/providers/conversion";
+import { sendWhatsApp, sendSms, sendEmail } from "@/lib/providers/communication";
 import type { LeadSourceType, LeadStatus, ActivityType } from "@/generated/prisma/client";
 
 async function assertProjectAccess(projectId: string) {
@@ -71,6 +75,18 @@ export async function createLead(formData: FormData) {
     },
   });
 
+  await writeAuditLog({
+    builderId: user.builderId,
+    userId: user.id,
+    action: "lead.create",
+    entityType: "Lead",
+    entityId: lead.id,
+    metadata: { source: lead.source, projectId },
+  });
+
+  const finalLead = await db.lead.findUniqueOrThrow({ where: { id: lead.id } });
+  await runAutomation("LEAD_CREATED", finalLead);
+
   revalidatePath("/leads");
   redirect(`/leads/${lead.id}`);
 }
@@ -83,7 +99,7 @@ export async function updateLeadStatus(leadId: string, formData: FormData) {
   const status = formData.get("status") as LeadStatus;
   const lostReason = (formData.get("lostReason") as string) || undefined;
 
-  await db.lead.update({
+  const updated = await db.lead.update({
     where: { id: leadId },
     data: {
       status,
@@ -99,6 +115,17 @@ export async function updateLeadStatus(leadId: string, formData: FormData) {
       content: `Status changed from ${lead.status} to ${status}${lostReason ? ` (${lostReason})` : ""}`,
     },
   });
+
+  await writeAuditLog({
+    builderId: user.builderId,
+    userId: user.id,
+    action: "lead.status_change",
+    entityType: "Lead",
+    entityId: leadId,
+    metadata: { from: lead.status, to: status, lostReason },
+  });
+
+  await runAutomation("STATUS_CHANGED", updated, { previousStatus: lead.status });
 
   revalidatePath(`/leads/${leadId}`);
   revalidatePath("/leads");
@@ -129,6 +156,15 @@ export async function assignLead(leadId: string, formData: FormData) {
       message: `${lead.name} has been assigned to you.`,
       link: `/leads/${leadId}`,
     },
+  });
+
+  await writeAuditLog({
+    builderId: user.builderId,
+    userId: user.id,
+    action: "lead.reassign",
+    entityType: "Lead",
+    entityId: leadId,
+    metadata: { assignedToId },
   });
 
   revalidatePath(`/leads/${leadId}`);
@@ -170,6 +206,14 @@ export async function addActivity(leadId: string, formData: FormData) {
   }
 
   if (type === "WHATSAPP" || type === "SMS" || type === "EMAIL") {
+    const messageBody = content ?? "";
+    const result =
+      type === "WHATSAPP"
+        ? await sendWhatsApp(lead.mobile, messageBody)
+        : type === "SMS"
+          ? await sendSms(lead.mobile, messageBody)
+          : await sendEmail(lead.email ?? "", "Update on your enquiry", messageBody);
+
     await db.communicationLog.create({
       data: {
         leadId,
@@ -177,7 +221,7 @@ export async function addActivity(leadId: string, formData: FormData) {
         channel: type,
         direction: "OUTBOUND",
         content,
-        status: "SENT",
+        status: result.status,
       },
     });
   }
@@ -234,7 +278,7 @@ export async function completeSiteVisit(siteVisitId: string, formData: FormData)
     data: { status: "COMPLETED", feedback, checkOutAt: new Date() },
   });
 
-  await db.lead.update({
+  const updatedLead = await db.lead.update({
     where: { id: visit.leadId },
     data: { status: "SITE_VISIT_DONE" },
   });
@@ -248,9 +292,20 @@ export async function completeSiteVisit(siteVisitId: string, formData: FormData)
     },
   });
 
+  const hasBooking = (await db.booking.count({ where: { leadId: visit.leadId } })) > 0;
+  await runAutomation("SITE_VISIT_COMPLETED", updatedLead, { hasBooking });
+
   revalidatePath(`/leads/${visit.leadId}`);
   revalidatePath("/site-visits");
 }
+
+const CONVERSION_EVENT_NAMES: Record<string, string> = {
+  LEAD: "Lead",
+  QUALIFIED_LEAD: "SubmitApplication",
+  SITE_VISIT: "Schedule",
+  BOOKING: "AddToCart",
+  PURCHASE: "Purchase",
+};
 
 export async function sendConversionEvent(leadId: string, formData: FormData) {
   const user = await requireUser();
@@ -260,14 +315,35 @@ export async function sendConversionEvent(leadId: string, formData: FormData) {
   const eventType = formData.get("eventType") as "LEAD" | "QUALIFIED_LEAD" | "SITE_VISIT" | "BOOKING" | "PURCHASE";
   const platform = lead.source.startsWith("META") ? "META" : lead.source.startsWith("GOOGLE") ? "GOOGLE" : "META";
 
+  const marketingSource = await db.marketingSource.findFirst({
+    where: { builderId: user.builderId, platform, isActive: true },
+  });
+
+  const result =
+    platform === "META"
+      ? await sendMetaConversionEvent({
+          config: marketingSource?.config as { pixelId?: string; accessToken?: string } | null,
+          eventName: CONVERSION_EVENT_NAMES[eventType] ?? eventType,
+          email: lead.email,
+          phone: lead.mobile,
+          fbclid: lead.fbclid,
+        })
+      : await sendGoogleConversionEvent({
+          config: marketingSource?.config as Record<string, string> | null,
+          gclid: lead.gclid,
+          email: lead.email,
+          phone: lead.mobile,
+        });
+
   await db.conversionEvent.create({
     data: {
       leadId,
       eventType,
       platform,
-      status: "SENT",
-      sentAt: new Date(),
+      status: result.status,
+      sentAt: result.status === "SENT" ? new Date() : undefined,
       payload: { email: lead.email, phone: lead.mobile, fbclid: lead.fbclid, gclid: lead.gclid },
+      response: (result.status === "SENT" ? result.response : { error: result.error }) as object,
     },
   });
 
@@ -276,7 +352,7 @@ export async function sendConversionEvent(leadId: string, formData: FormData) {
       leadId,
       userId: user.id,
       type: "SYSTEM",
-      content: `${eventType.replaceAll("_", " ")} conversion event sent to ${platform}`,
+      content: `${eventType.replaceAll("_", " ")} conversion event ${result.status === "SENT" ? "sent to" : "failed for"} ${platform}`,
     },
   });
 

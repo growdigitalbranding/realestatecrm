@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Upload } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireUser, isFullAccess, scopedProjectIds } from "@/lib/auth-helpers";
 import {
@@ -91,11 +91,18 @@ export default async function LeadsPage({
           <h1 className="text-xl font-semibold">Leads</h1>
           <p className="text-sm text-muted-foreground">{total} leads matching filters</p>
         </div>
-        <Link href="/leads/new">
-          <Button>
-            <Plus /> New Lead
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/leads/import">
+            <Button variant="outline">
+              <Upload /> Import CSV
+            </Button>
+          </Link>
+          <Link href="/leads/new">
+            <Button>
+              <Plus /> New Lead
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <Card className="p-4">

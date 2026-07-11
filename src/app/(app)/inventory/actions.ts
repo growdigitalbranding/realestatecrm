@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth-helpers";
 import { can } from "@/lib/permissions";
+import { writeAuditLog } from "@/lib/audit";
 import type { UnitStatus } from "@/generated/prisma/client";
 
 async function assertCanManageInventory() {
@@ -47,10 +48,16 @@ export async function createUnit(floorId: string, formData: FormData) {
 }
 
 export async function updateUnitStatus(unitId: string, formData: FormData) {
-  await assertCanManageInventory();
-  await db.unit.update({
-    where: { id: unitId },
-    data: { status: formData.get("status") as UnitStatus },
+  const user = await assertCanManageInventory();
+  const status = formData.get("status") as UnitStatus;
+  await db.unit.update({ where: { id: unitId }, data: { status } });
+  await writeAuditLog({
+    builderId: user.builderId,
+    userId: user.id,
+    action: "unit.status_change",
+    entityType: "Unit",
+    entityId: unitId,
+    metadata: { status },
   });
   revalidatePath("/inventory");
 }

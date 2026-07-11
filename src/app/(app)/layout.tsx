@@ -27,7 +27,7 @@ export default async function AppLayout({
         <NavSidebar visibleHrefs={visibleHrefs} />
       </aside>
       <div className="flex flex-1 flex-col">
-        <Topbar name={user.name ?? ""} role={user.role} builderName={user.builderName} />
+        <Topbar userId={user.id} name={user.name ?? ""} role={user.role} builderName={user.builderName} />
         <main className="flex-1 bg-background p-6">{children}</main>
       </div>
     </div>

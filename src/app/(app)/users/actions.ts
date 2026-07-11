@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth-helpers";
 import { can } from "@/lib/permissions";
+import { writeAuditLog } from "@/lib/audit";
 import type { Role } from "@/generated/prisma/client";
 
 export async function createTeamMember(formData: FormData) {
@@ -32,6 +33,15 @@ export async function createTeamMember(formData: FormData) {
     });
   }
 
+  await writeAuditLog({
+    builderId: user.builderId,
+    userId: user.id,
+    action: "user.create",
+    entityType: "User",
+    entityId: newUser.id,
+    metadata: { role: newUser.role, email: newUser.email },
+  });
+
   revalidatePath("/users");
 }
 
@@ -39,9 +49,18 @@ export async function toggleUserActive(userId: string, formData: FormData) {
   const user = await requireUser();
   if (!can(user.role, "manageUsers")) throw new Error("Not authorized");
 
+  const isActive = formData.get("isActive") === "true";
   await db.user.update({
     where: { id: userId },
-    data: { isActive: formData.get("isActive") === "true" },
+    data: { isActive },
+  });
+
+  await writeAuditLog({
+    builderId: user.builderId,
+    userId: user.id,
+    action: isActive ? "user.activate" : "user.deactivate",
+    entityType: "User",
+    entityId: userId,
   });
 
   revalidatePath("/users");

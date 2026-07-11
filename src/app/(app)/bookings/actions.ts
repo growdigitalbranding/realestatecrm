@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth-helpers";
 import { can } from "@/lib/permissions";
+import { runAutomation } from "@/lib/automation";
+import { writeAuditLog } from "@/lib/audit";
 import type { BookingStatus } from "@/generated/prisma/client";
 
 export async function createBooking(formData: FormData) {
@@ -33,7 +35,7 @@ export async function createBooking(formData: FormData) {
   });
 
   await db.unit.update({ where: { id: unitId }, data: { status: "BLOCKED" } });
-  await db.lead.update({ where: { id: leadId }, data: { status: "BOOKING_TOKEN" } });
+  const updatedLead = await db.lead.update({ where: { id: leadId }, data: { status: "BOOKING_TOKEN" } });
   await db.leadActivity.create({
     data: {
       leadId,
@@ -42,6 +44,17 @@ export async function createBooking(formData: FormData) {
       content: `Booking token created for unit ${unit.unitNumber}`,
     },
   });
+
+  await writeAuditLog({
+    builderId: user.builderId,
+    userId: user.id,
+    action: "booking.create",
+    entityType: "Booking",
+    entityId: booking.id,
+    metadata: { leadId, unitId, totalPrice },
+  });
+
+  await runAutomation("BOOKING_CREATED", updatedLead, { totalPrice, bookingAmount });
 
   revalidatePath("/bookings");
   revalidatePath(`/leads/${leadId}`);
@@ -74,6 +87,15 @@ export async function updateBookingStatus(bookingId: string, formData: FormData)
       type: "SYSTEM",
       content: `Booking status changed to ${status}`,
     },
+  });
+
+  await writeAuditLog({
+    builderId: user.builderId,
+    userId: user.id,
+    action: "booking.status_change",
+    entityType: "Booking",
+    entityId: bookingId,
+    metadata: { from: booking.status, to: status },
   });
 
   revalidatePath(`/bookings/${bookingId}`);

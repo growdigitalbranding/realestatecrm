@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
+import { verifyTotpCode } from "@/lib/totp";
 import type { Role } from "@/generated/prisma/client";
 
 declare module "next-auth" {
@@ -11,6 +12,7 @@ declare module "next-auth" {
     builderName: string;
     isCompanyWide: boolean;
     projectIds: string[];
+    sessionVersion: number;
   }
   interface Session {
     user: {
@@ -22,6 +24,7 @@ declare module "next-auth" {
       builderName: string;
       isCompanyWide: boolean;
       projectIds: string[];
+      sessionVersion: number;
     };
   }
 }
@@ -33,6 +36,7 @@ interface AppToken {
   builderName: string;
   isCompanyWide: boolean;
   projectIds: string[];
+  sessionVersion: number;
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -44,10 +48,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        code: { label: "2FA Code", type: "text" },
       },
       authorize: async (credentials) => {
         const email = credentials?.email as string | undefined;
         const password = credentials?.password as string | undefined;
+        const code = credentials?.code as string | undefined;
         if (!email || !password) return null;
 
         const user = await db.user.findUnique({
@@ -58,6 +64,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) return null;
+
+        if (user.twoFactorEnabled) {
+          if (!user.twoFactorSecret || !code || !verifyTotpCode(user.twoFactorSecret, code)) {
+            return null;
+          }
+        }
 
         await db.user.update({
           where: { id: user.id },
@@ -73,6 +85,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           builderName: user.builder.name,
           isCompanyWide: user.isCompanyWide,
           projectIds: user.projectAccess.map((p) => p.projectId),
+          sessionVersion: user.sessionVersion,
         };
       },
     }),
@@ -87,6 +100,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         t.builderName = user.builderName;
         t.isCompanyWide = user.isCompanyWide;
         t.projectIds = user.projectIds;
+        t.sessionVersion = user.sessionVersion;
       }
       return t;
     },
@@ -98,6 +112,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.user.builderName = t.builderName;
       session.user.isCompanyWide = t.isCompanyWide;
       session.user.projectIds = t.projectIds;
+      session.user.sessionVersion = t.sessionVersion;
       return session;
     },
   },

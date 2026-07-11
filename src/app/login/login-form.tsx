@@ -36,6 +36,12 @@ export function LoginForm() {
           required
         />
       </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="code">
+          2FA code <span className="font-normal text-muted-foreground">(only if enabled on your account)</span>
+        </Label>
+        <Input id="code" name="code" inputMode="numeric" maxLength={6} placeholder="123456" />
+      </div>
       {errorMessage && (
         <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
           {errorMessage}

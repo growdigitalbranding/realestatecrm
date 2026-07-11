@@ -13,6 +13,7 @@ import {
   Workflow,
   BarChart3,
   UserCog,
+  Settings,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,7 @@ const ICONS: Record<string, LucideIcon> = {
   Workflow,
   BarChart3,
   UserCog,
+  Settings,
 };
 
 export function NavSidebar({ visibleHrefs }: { visibleHrefs: string[] }) {

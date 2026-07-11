@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth-helpers";
 import { can } from "@/lib/permissions";
+import { writeAuditLog } from "@/lib/audit";
 import type { ProjectStatus } from "@/generated/prisma/client";
 
 function slugify(value: string) {
@@ -33,6 +34,15 @@ export async function createProject(formData: FormData) {
       minBudget: formData.get("minBudget") ? Number(formData.get("minBudget")) : undefined,
       maxBudget: formData.get("maxBudget") ? Number(formData.get("maxBudget")) : undefined,
     },
+  });
+
+  await writeAuditLog({
+    builderId: user.builderId,
+    userId: user.id,
+    action: "project.create",
+    entityType: "Project",
+    entityId: project.id,
+    metadata: { name },
   });
 
   revalidatePath("/projects");

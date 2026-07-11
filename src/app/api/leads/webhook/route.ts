@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { verifyApiKey } from "@/lib/api-keys";
+import { authenticateApiRequest } from "@/lib/api-auth";
 import { resolveAssignment } from "@/lib/assignment";
+import { runAutomation } from "@/lib/automation";
 import type { LeadSourceType, Prisma } from "@/generated/prisma/client";
 
 const VALID_SOURCES = new Set([
@@ -28,24 +29,8 @@ function inferSource(body: Record<string, unknown>): LeadSourceType {
   return "WEBSITE_FORM";
 }
 
-async function authenticate(req: NextRequest) {
-  const rawKey = req.headers.get("x-api-key");
-  if (!rawKey) return null;
-
-  const prefix = rawKey.slice(0, 10);
-  const candidates = await db.apiKey.findMany({ where: { keyPrefix: prefix, isActive: true } });
-
-  for (const candidate of candidates) {
-    if (await verifyApiKey(rawKey, candidate.keyHash)) {
-      await db.apiKey.update({ where: { id: candidate.id }, data: { lastUsedAt: new Date() } });
-      return candidate;
-    }
-  }
-  return null;
-}
-
 export async function POST(req: NextRequest) {
-  const apiKey = await authenticate(req);
+  const apiKey = await authenticateApiRequest(req);
   if (!apiKey) {
     return NextResponse.json({ error: "Invalid or missing x-api-key" }, { status: 401 });
   }
@@ -179,6 +164,9 @@ export async function POST(req: NextRequest) {
   await db.webhookLog.create({
     data: { builderId: apiKey.builderId, source: "lead_webhook", payload: body as Prisma.InputJsonValue, status: "PROCESSED", leadId: lead.id },
   });
+
+  const finalLead = await db.lead.findUniqueOrThrow({ where: { id: lead.id } });
+  await runAutomation("LEAD_CREATED", finalLead);
 
   return NextResponse.json({ success: true, leadId: lead.id, duplicate: false, assignedToId });
 }

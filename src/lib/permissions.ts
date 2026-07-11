@@ -57,4 +57,5 @@ export const NAV_ITEMS = [
   { href: "/automation", label: "Automation", icon: "Workflow", capability: "manageAutomation" as Capability },
   { href: "/reports", label: "Reports", icon: "BarChart3" },
   { href: "/users", label: "Team", icon: "UserCog", capability: "manageUsers" as Capability },
+  { href: "/settings", label: "Settings", icon: "Settings" },
 ];
