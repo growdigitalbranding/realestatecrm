@@ -1,0 +1,731 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  SUPER_ADMIN
+  BUILDER_ADMIN
+  SALES_MANAGER
+  TELECALLER
+  SALES_EXECUTIVE
+  MARKETING_MANAGER
+}
+
+enum ProjectStatus {
+  UPCOMING
+  ACTIVE
+  COMPLETED
+  ON_HOLD
+}
+
+enum LeadSourceType {
+  WEBSITE_FORM
+  WEBHOOK
+  API
+  JAVASCRIPT_FORM
+  WORDPRESS_PLUGIN
+  META_LEAD_ADS
+  META_CAPI
+  GOOGLE_LEAD_FORM
+  GOOGLE_LANDING_PAGE
+  GOOGLE_OFFLINE_CONVERSION
+  WHATSAPP_CLICK_TO_CHAT
+  WHATSAPP_CHATBOT
+  WHATSAPP_MANUAL
+  MAGICBRICKS
+  ACRES99
+  HOUSING_COM
+  NOBROKER
+  INDIAPROPERTY
+  SQUAREYARDS
+  CHANNEL_PARTNER
+  WALK_IN
+  REFERRAL
+  CSV_IMPORT
+  EXCEL_IMPORT
+  OTHER
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  INTERESTED
+  SITE_VISIT_SCHEDULED
+  SITE_VISIT_DONE
+  NEGOTIATION
+  BOOKING_TOKEN
+  BOOKED
+  AGREEMENT
+  REGISTERED
+  POSSESSION
+  LOST
+}
+
+enum ActivityType {
+  CALL
+  WHATSAPP
+  EMAIL
+  SMS
+  NOTE
+  TASK
+  MEETING
+  STATUS_CHANGE
+  SITE_VISIT
+  ASSIGNMENT
+  SYSTEM
+}
+
+enum TaskStatus {
+  PENDING
+  DONE
+  OVERDUE
+  CANCELLED
+}
+
+enum SiteVisitStatus {
+  SCHEDULED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum UnitStatus {
+  AVAILABLE
+  BLOCKED
+  BOOKED
+  REGISTERED
+  SOLD
+}
+
+enum BookingStatus {
+  TOKEN
+  CONFIRMED
+  AGREEMENT
+  REGISTERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PARTIAL
+  PAID
+  REFUNDED
+}
+
+enum CommissionStatus {
+  PENDING
+  APPROVED
+  PAID
+}
+
+enum CommunicationChannel {
+  WHATSAPP
+  SMS
+  EMAIL
+  PUSH
+  CALL
+}
+
+enum CommunicationDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum TemplateApprovalStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum MarketingPlatform {
+  META
+  GOOGLE
+  ORGANIC
+  PORTAL
+  OTHER
+}
+
+enum ConversionEventType {
+  LEAD
+  QUALIFIED_LEAD
+  SITE_VISIT
+  BOOKING
+  PURCHASE
+}
+
+enum ConversionEventStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum AssignmentRuleType {
+  ROUND_ROBIN
+  PRIORITY
+  AREA_BASED
+  LANGUAGE_BASED
+  BUDGET_BASED
+  PROJECT_BASED
+  AVAILABILITY
+}
+
+enum AutomationTriggerType {
+  LEAD_CREATED
+  STATUS_CHANGED
+  SITE_VISIT_COMPLETED
+  FOLLOW_UP_MISSED
+  BOOKING_CREATED
+  NO_ACTIVITY
+}
+
+enum NotificationType {
+  NEW_LEAD
+  LEAD_ASSIGNED
+  FOLLOW_UP_DUE
+  FOLLOW_UP_MISSED
+  SITE_VISIT_REMINDER
+  BOOKING
+  PAYMENT_RECEIVED
+  SYSTEM
+}
+
+enum WebhookLogStatus {
+  RECEIVED
+  PROCESSED
+  DUPLICATE
+  FAILED
+}
+
+// ---------------------------------------------------------------------------
+// Tenancy & Users
+// ---------------------------------------------------------------------------
+
+model Builder {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  logoUrl   String?
+  plan      String   @default("enterprise")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  projects           Project[]
+  users              User[]
+  leadSources        MarketingSource[]
+  templates          MessageTemplate[]
+  automationRules    AutomationRule[]
+  apiKeys            ApiKey[]
+  auditLogs          AuditLog[]
+  webhookLogs        WebhookLog[]
+
+  @@map("builders")
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  builderId   String
+  builder     Builder       @relation(fields: [builderId], references: [id], onDelete: Cascade)
+  name        String
+  slug        String
+  city        String?
+  state       String?
+  address     String?
+  reraNumber  String?
+  status      ProjectStatus @default(UPCOMING)
+  minBudget   Decimal?      @db.Decimal(14, 2)
+  maxBudget   Decimal?      @db.Decimal(14, 2)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  towers            Tower[]
+  leads             Lead[]
+  siteVisits        SiteVisit[]
+  bookings          Booking[]
+  userAccess        UserProjectAccess[]
+  assignmentRules   AssignmentRule[]
+  marketingSources  MarketingSource[]
+  campaigns         Campaign[]
+  automationRules   AutomationRule[]
+
+  @@unique([builderId, slug])
+  @@map("projects")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  builderId    String
+  builder      Builder  @relation(fields: [builderId], references: [id], onDelete: Cascade)
+  name         String
+  email        String   @unique
+  passwordHash String
+  phone        String?
+  role         Role
+  isCompanyWide Boolean @default(false)
+  isActive     Boolean  @default(true)
+  avatarUrl    String?
+  lastLoginAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  projectAccess       UserProjectAccess[]
+  assignedLeads       Lead[]               @relation("LeadAssignedTo")
+  createdLeads        Lead[]               @relation("LeadCreatedBy")
+  activities          LeadActivity[]
+  tasks               Task[]
+  siteVisitExecutions SiteVisit[]          @relation("SiteVisitExecutive")
+  bookingsHandled     Booking[]            @relation("BookingExecutive")
+  notifications       Notification[]
+  auditLogs           AuditLog[]
+  communicationLogs   CommunicationLog[]
+
+  @@map("users")
+}
+
+model UserProjectAccess {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, projectId])
+  @@map("user_project_access")
+}
+
+// ---------------------------------------------------------------------------
+// Leads
+// ---------------------------------------------------------------------------
+
+model Lead {
+  id            String         @id @default(cuid())
+  builderId     String
+  projectId     String
+  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  name          String
+  mobile        String
+  email         String?
+  city          String?
+  state         String?
+  budgetMin     Decimal?       @db.Decimal(14, 2)
+  budgetMax     Decimal?       @db.Decimal(14, 2)
+
+  source        LeadSourceType
+  sourceDetail  String?
+  campaign      String?
+  adset         String?
+  ad             String?
+  utmSource     String?
+  utmMedium     String?
+  utmCampaign   String?
+  utmTerm       String?
+  utmContent    String?
+  device        String?
+  browser       String?
+  landingPage   String?
+  gclid         String?
+  fbclid        String?
+  ipAddress     String?
+
+  status        LeadStatus     @default(NEW)
+  lostReason    String?
+  score         Int?
+
+  assignedToId  String?
+  assignedTo    User?          @relation("LeadAssignedTo", fields: [assignedToId], references: [id])
+  createdById   String?
+  createdBy     User?          @relation("LeadCreatedBy", fields: [createdById], references: [id])
+
+  duplicateOfId String?
+  duplicateOf   Lead?          @relation("LeadDuplicate", fields: [duplicateOfId], references: [id])
+  duplicates    Lead[]         @relation("LeadDuplicate")
+
+  nextFollowUpAt DateTime?
+  lastContactedAt DateTime?
+
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  activities        LeadActivity[]
+  tasks              Task[]
+  siteVisits         SiteVisit[]
+  bookings           Booking[]
+  communicationLogs  CommunicationLog[]
+  conversionEvents   ConversionEvent[]
+
+  @@index([builderId])
+  @@index([projectId])
+  @@index([status])
+  @@index([mobile])
+  @@index([assignedToId])
+  @@map("leads")
+}
+
+model LeadActivity {
+  id             String       @id @default(cuid())
+  leadId         String
+  lead           Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  userId         String?
+  user           User?        @relation(fields: [userId], references: [id])
+  type           ActivityType
+  content        String?
+  metadata       Json?
+  nextFollowUpAt DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@index([leadId])
+  @@map("lead_activities")
+}
+
+model Task {
+  id           String     @id @default(cuid())
+  leadId       String?
+  lead         Lead?      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  assignedToId String
+  assignedTo   User       @relation(fields: [assignedToId], references: [id])
+  title        String
+  description  String?
+  dueAt        DateTime
+  status       TaskStatus @default(PENDING)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([assignedToId])
+  @@index([dueAt])
+  @@map("tasks")
+}
+
+model SiteVisit {
+  id              String          @id @default(cuid())
+  leadId          String
+  lead            Lead            @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  projectId       String
+  project         Project         @relation(fields: [projectId], references: [id])
+  executiveId     String?
+  executive       User?           @relation("SiteVisitExecutive", fields: [executiveId], references: [id])
+  scheduledAt     DateTime
+  status          SiteVisitStatus @default(SCHEDULED)
+  familyMembers   Int?
+  vehicleNumber   String?
+  notes           String?
+  feedback        String?
+  checkInAt       DateTime?
+  checkOutAt      DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([leadId])
+  @@index([projectId])
+  @@map("site_visits")
+}
+
+// ---------------------------------------------------------------------------
+// Assignment & Automation
+// ---------------------------------------------------------------------------
+
+model AssignmentRule {
+  id        String             @id @default(cuid())
+  projectId String
+  project   Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  type      AssignmentRuleType
+  config    Json
+  priority  Int                @default(0)
+  isActive  Boolean            @default(true)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@map("assignment_rules")
+}
+
+model AutomationRule {
+  id          String                @id @default(cuid())
+  builderId   String
+  builder     Builder               @relation(fields: [builderId], references: [id], onDelete: Cascade)
+  projectId   String?
+  project     Project?              @relation(fields: [projectId], references: [id])
+  name        String
+  triggerType AutomationTriggerType
+  conditions  Json
+  actions     Json
+  isActive    Boolean               @default(true)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  @@map("automation_rules")
+}
+
+// ---------------------------------------------------------------------------
+// Inventory
+// ---------------------------------------------------------------------------
+
+model Tower {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime @default(now())
+
+  floors Floor[]
+
+  @@map("towers")
+}
+
+model Floor {
+  id        String   @id @default(cuid())
+  towerId   String
+  tower     Tower    @relation(fields: [towerId], references: [id], onDelete: Cascade)
+  number    Int
+  name      String?
+  createdAt DateTime @default(now())
+
+  units Unit[]
+
+  @@map("floors")
+}
+
+model Unit {
+  id             String     @id @default(cuid())
+  floorId        String
+  floor          Floor      @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  unitNumber     String
+  unitType       String?
+  areaSqft       Decimal?   @db.Decimal(10, 2)
+  facing         String?
+  price          Decimal?   @db.Decimal(14, 2)
+  bookingAmount  Decimal?   @db.Decimal(14, 2)
+  floorPlanUrl   String?
+  status         UnitStatus @default(AVAILABLE)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  bookings Booking[]
+
+  @@unique([floorId, unitNumber])
+  @@map("units")
+}
+
+// ---------------------------------------------------------------------------
+// Booking
+// ---------------------------------------------------------------------------
+
+model Booking {
+  id                String            @id @default(cuid())
+  leadId            String
+  lead              Lead              @relation(fields: [leadId], references: [id])
+  unitId            String
+  unit              Unit              @relation(fields: [unitId], references: [id])
+  projectId         String
+  project           Project           @relation(fields: [projectId], references: [id])
+  salesExecutiveId  String?
+  salesExecutive    User?             @relation("BookingExecutive", fields: [salesExecutiveId], references: [id])
+
+  bookingDate       DateTime          @default(now())
+  totalPrice        Decimal           @db.Decimal(14, 2)
+  bookingAmount     Decimal           @db.Decimal(14, 2)
+  status            BookingStatus     @default(TOKEN)
+  commissionAmount  Decimal?          @db.Decimal(14, 2)
+  commissionStatus  CommissionStatus  @default(PENDING)
+  notes             String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  documents BookingDocument[]
+  payments  Payment[]
+
+  @@map("bookings")
+}
+
+model BookingDocument {
+  id         String   @id @default(cuid())
+  bookingId  String
+  booking    Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  name       String
+  url        String
+  uploadedAt DateTime @default(now())
+
+  @@map("booking_documents")
+}
+
+model Payment {
+  id        String        @id @default(cuid())
+  bookingId String
+  booking   Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  amount    Decimal       @db.Decimal(14, 2)
+  mode      String?
+  reference String?
+  status    PaymentStatus @default(PENDING)
+  paidAt    DateTime?
+  createdAt DateTime      @default(now())
+
+  @@map("payments")
+}
+
+// ---------------------------------------------------------------------------
+// Communication
+// ---------------------------------------------------------------------------
+
+model MessageTemplate {
+  id               String                  @id @default(cuid())
+  builderId        String
+  builder          Builder                 @relation(fields: [builderId], references: [id], onDelete: Cascade)
+  name             String
+  channel          CommunicationChannel
+  content          String
+  approvalStatus   TemplateApprovalStatus  @default(DRAFT)
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  communicationLogs CommunicationLog[]
+
+  @@map("message_templates")
+}
+
+model CommunicationLog {
+  id          String                  @id @default(cuid())
+  leadId      String
+  lead        Lead                    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?                   @relation(fields: [userId], references: [id])
+  templateId  String?
+  template    MessageTemplate?        @relation(fields: [templateId], references: [id])
+  channel     CommunicationChannel
+  direction   CommunicationDirection
+  content     String?
+  status      String?
+  createdAt   DateTime                @default(now())
+
+  @@index([leadId])
+  @@map("communication_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Marketing Attribution
+// ---------------------------------------------------------------------------
+
+model MarketingSource {
+  id        String            @id @default(cuid())
+  builderId String
+  builder   Builder           @relation(fields: [builderId], references: [id], onDelete: Cascade)
+  projectId String?
+  project   Project?          @relation(fields: [projectId], references: [id])
+  name      String
+  platform  MarketingPlatform
+  config    Json?
+  isActive  Boolean           @default(true)
+  createdAt DateTime          @default(now())
+
+  campaigns Campaign[]
+
+  @@map("marketing_sources")
+}
+
+model Campaign {
+  id                String          @id @default(cuid())
+  projectId         String
+  project           Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  marketingSourceId String?
+  marketingSource   MarketingSource? @relation(fields: [marketingSourceId], references: [id])
+  name              String
+  externalId        String?
+  platform          MarketingPlatform
+  spend             Decimal?        @db.Decimal(14, 2)
+  isActive          Boolean         @default(true)
+  createdAt         DateTime        @default(now())
+
+  @@map("campaigns")
+}
+
+model ConversionEvent {
+  id         String                 @id @default(cuid())
+  leadId     String
+  lead       Lead                   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  eventType  ConversionEventType
+  platform   MarketingPlatform
+  value      Decimal?               @db.Decimal(14, 2)
+  currency   String                 @default("INR")
+  status     ConversionEventStatus  @default(PENDING)
+  payload    Json?
+  response   Json?
+  sentAt     DateTime?
+  createdAt  DateTime               @default(now())
+
+  @@index([leadId])
+  @@map("conversion_events")
+}
+
+// ---------------------------------------------------------------------------
+// Notifications, Audit, API
+// ---------------------------------------------------------------------------
+
+model Notification {
+  id        String            @id @default(cuid())
+  userId    String
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  message   String
+  link      String?
+  isRead    Boolean           @default(false)
+  createdAt DateTime          @default(now())
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  builderId  String
+  builder    Builder  @relation(fields: [builderId], references: [id], onDelete: Cascade)
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([builderId])
+  @@map("audit_logs")
+}
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  builderId  String
+  builder    Builder   @relation(fields: [builderId], references: [id], onDelete: Cascade)
+  name       String
+  keyHash    String    @unique
+  keyPrefix  String
+  isActive   Boolean   @default(true)
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@map("api_keys")
+}
+
+model WebhookLog {
+  id        String           @id @default(cuid())
+  builderId String?
+  builder   Builder?         @relation(fields: [builderId], references: [id])
+  source    String
+  payload   Json
+  status    WebhookLogStatus @default(RECEIVED)
+  error     String?
+  leadId    String?
+  createdAt DateTime         @default(now())
+
+  @@map("webhook_logs")
+}
