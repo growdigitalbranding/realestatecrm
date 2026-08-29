@@ -2,7 +2,15 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
 
-const PUBLIC_PATHS = ["/login", "/api/auth", "/api/leads/webhook", "/api/cron", "/api/v1"];
+// "/coach" is the public marketing site and must never redirect to the CRM login.
+const PUBLIC_PATHS = [
+  "/coach",
+  "/login",
+  "/api/auth",
+  "/api/leads/webhook",
+  "/api/cron",
+  "/api/v1",
+];
 
 function buildCspHeader(nonce: string) {
   const isDev = process.env.NODE_ENV === "development";

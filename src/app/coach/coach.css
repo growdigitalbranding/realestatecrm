@@ -1,0 +1,57 @@
+/*
+ * Design tokens for the Maren Vale coaching site.
+ *
+ * Scoped to `.coach-site` rather than `:root` so they cannot leak into the CRM
+ * that shares this Next.js app (see src/app/globals.css for those tokens).
+ */
+
+.coach-site {
+  --ink: #14110f;
+  --ink-soft: #3a332e;
+  --paper: #f7f2ea;
+  --paper-deep: #ede4d6;
+  --sand: #e0d3c0;
+  --clay: #b8563a;
+  --clay-soft: #d98b6c;
+  --moss: #3f5145;
+  --gold: #a8834e;
+  --rule: rgba(20, 17, 15, 0.12);
+
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  /* Long-form pages read better with slightly open tracking on a warm ground. */
+  letter-spacing: -0.005em;
+}
+
+.coach-site ::selection {
+  background: var(--clay);
+  color: var(--paper);
+}
+
+.coach-display {
+  font-family: var(--font-display), ui-serif, Georgia, serif;
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  line-height: 0.98;
+}
+
+/* A hairline that reads as an editorial rule rather than a border. */
+.coach-rule {
+  border-color: var(--rule);
+}
+
+/* GSAP writes the horizontal offset here every frame; hint the compositor. */
+.coach-track {
+  will-change: transform;
+}
+
+.coach-site h1,
+.coach-site h2,
+.coach-site h3 {
+  text-wrap: balance;
+}
+
+.coach-site p {
+  text-wrap: pretty;
+}
