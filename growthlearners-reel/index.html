@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Growthlearners — Showreel</title>
+<style>
+@font-face{font-family:'Archivo';src:url(node_modules/@fontsource-variable/archivo/files/archivo-latin-standard-normal.woff2) format('woff2-variations');font-weight:100 900;font-stretch:62% 125%;font-style:normal;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'Archivo';src:url(node_modules/@fontsource-variable/archivo/files/archivo-latin-ext-standard-normal.woff2) format('woff2-variations');font-weight:100 900;font-stretch:62% 125%;font-style:normal;unicode-range:U+0100-02AF,U+0304,U+0308,U+0329,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:'Inter';src:url(node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2) format('woff2-variations');font-weight:100 900}
+@font-face{font-family:'Mono';src:url(node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-500-normal.woff2) format('woff2');font-weight:500}
+@font-face{font-family:'Mono';src:url(node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-700-normal.woff2) format('woff2');font-weight:700}
+@font-face{font-family:'Serif';src:url(node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-italic.woff2) format('woff2');font-style:italic}
+@font-face{font-family:'Serif';src:url(node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff2) format('woff2');font-style:normal}
+
+:root{
+  --ink:#07080F; --ink2:#0E1020; --panel:#121528; --line:rgba(255,255,255,.09);
+  --paper:#F3F4FA; --lime:#C6FF34; --violet:#6D4AFF; --sky:#38CFFF; --coral:#FF5C39;
+  --muted:#8A8FAD; --white:#F7F8FF;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1920px;height:1080px;overflow:hidden;background:#000}
+body{font-family:'Inter',sans-serif;color:var(--white);-webkit-font-smoothing:antialiased}
+#stage{position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;background:var(--ink)}
+#shake,#cam{position:absolute;inset:0;transform-origin:50% 50%}
+.scene{position:absolute;left:0;top:0;width:1920px;height:1080px}
+.scene>.fill{position:absolute;inset:-400px}
+.abs{position:absolute}
+.ch{display:inline-block;will-change:transform;white-space:pre}
+.mask{display:inline-block;overflow:hidden;white-space:nowrap;vertical-align:top;padding:0 .04em .08em}
+.arch{white-space:nowrap;font-family:'Archivo';font-weight:900;font-stretch:112%;letter-spacing:-.02em;line-height:.86}
+.mono{font-family:'Mono';font-weight:500;letter-spacing:.08em;text-transform:uppercase}
+.serif{font-family:'Serif';font-style:italic;font-weight:400;letter-spacing:-.01em}
+.card{position:absolute;background:linear-gradient(180deg,#171a31,#11132a);border:1px solid rgba(255,255,255,.1);border-radius:26px;box-shadow:0 40px 80px -20px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.08);overflow:hidden}
+.card .hd{position:absolute;left:26px;top:22px;font-family:'Mono';font-size:15px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:10px;height:46px;padding:0 20px;border-radius:999px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.04);font-family:'Inter';font-weight:600;font-size:20px;color:var(--white);white-space:nowrap}
+.chip .dot{width:10px;height:10px;border-radius:50%;background:var(--lime)}
+.bar{position:absolute;height:12px;border-radius:6px;background:rgba(255,255,255,.12)}
+svg{overflow:visible}
+#flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;mix-blend-mode:screen}
+#iris{position:absolute;width:200px;height:200px;border-radius:50%;background:var(--lime);left:0;top:0;transform:scale(0)}
+#hud{position:absolute;inset:0;pointer-events:none;color:#fff;text-shadow:0 0 6px rgba(0,0,0,.35);font-family:'Mono';font-size:14px;letter-spacing:.16em;opacity:.62}
+#hud div{position:absolute;white-space:nowrap}
+#grain{position:absolute;inset:-200px;opacity:.07;mix-blend-mode:overlay;pointer-events:none}
+#vignette{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 50%,rgba(0,0,0,0) 55%,rgba(0,0,0,.45) 100%)}
+#letterbox{position:absolute;inset:0;pointer-events:none}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <filter id="mbx" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur id="mbxb" stdDeviation="0 0"/></filter>
+    <filter id="mby" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur id="mbyb" stdDeviation="0 0"/></filter>
+  </defs>
+</svg>
+<div id="stage">
+  <div id="shake"><div id="cam"></div></div>
+  <div id="iris"></div>
+  <div id="flash"></div>
+    <div id="hud"></div>
+</div>
+<script src="node_modules/gsap/dist/gsap.min.js"></script>
+<script src="node_modules/gsap/dist/DrawSVGPlugin.min.js"></script>
+<script src="node_modules/gsap/dist/CustomEase.min.js"></script>
+<script src="src/lib.js"></script>
+<script src="src/scenes.js"></script>
+</body>
+</html>
